@@ -2,7 +2,7 @@ package ga.ssGA;
 
 import java.util.Arrays;
 
-public class MKPParams {
+public class ProblemMKP extends Problem {
     // number of variables ('items')
     int numItems;
 
@@ -23,8 +23,8 @@ public class MKPParams {
     // total capacity (number of available resources) per knapsack
     double[] knapsacksCapacity;
 
-    public MKPParams(int numItems, int numKnapsacks, double optimalFitness, double[] profitPerItem,
-                     double[][] knapsacksCoefficients, double[] knapsacksCapacity) {
+    public ProblemMKP(int numItems, int numKnapsacks, double optimalFitness, double[] profitPerItem,
+                      double[][] knapsacksCoefficients, double[] knapsacksCapacity) {
         this.numItems = numItems;
         this.numKnapsacks = numKnapsacks;
         this.optimalFitness = optimalFitness;
@@ -52,5 +52,40 @@ public class MKPParams {
         str.append(Arrays.toString(this.knapsacksCapacity));
         str.append("\n");
         return str.toString();
+    }
+
+    private boolean isFeasible(Individual indiv) {
+        for (int i = 0; i < this.numKnapsacks; i++) {
+            double knapsackCapacity = this.knapsacksCapacity[i];
+            double indivAllocated = 0.0;
+            for (int j = 0; j < this.numItems; j++) {
+                if (indiv.get_allele(j) == (byte)1) {
+                    indivAllocated += this.knapsacksCoefficients[i][j];
+                }
+            }
+            if (indivAllocated > knapsackCapacity) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private double computeFitness(Individual indiv) {
+        double fitness = 0.0;
+        for (int j = 0; j < this.numItems; j++) {
+            if (indiv.get_allele(j) == (byte)1) {
+                fitness += this.profitPerItem[j];
+            }
+        }
+        indiv.set_fitness(fitness);
+        return fitness;
+    }
+
+    @Override
+    public double Evaluate(Individual Indiv) {
+        if (this.isFeasible(Indiv)) {
+            return this.computeFitness(Indiv);
+        }
+        return -1;  // In order not to be mixed up with the empty solution (all 0s)
     }
 }
