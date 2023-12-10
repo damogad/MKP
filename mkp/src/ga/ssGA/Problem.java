@@ -67,6 +67,10 @@ public abstract class Problem {                   // Maximization task
         return Evaluate(Indiv);
     }
 
+    public void resetFitnessCounter() {
+        this.fitness_counter = 0L;
+    }
+
     public abstract double Evaluate(Individual Indiv);
 }
 // END OF CLASS: Problem
