@@ -47,6 +47,9 @@ public class Population {
         return worstp;
     }
 
+    public Individual[] getIndividuals() {
+        return this.pop;
+    }
 
     public Individual get_ith(int index) throws Exception {
         if ((index < popsize) && (index >= 0))

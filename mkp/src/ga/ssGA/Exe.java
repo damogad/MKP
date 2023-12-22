@@ -22,7 +22,8 @@ public class Exe {
     public static final double[] CROSSOVER_PROBABILITIES = new double[]{0.6, 0.7, 0.8, 0.9, 1.0};
     public static final int[] NUMBER_AVG_EXPECTED_MUTATIONS = new int[]{1, 2, 3, 4, 5};
     public static final String OUTPUT_CSV_HEADER = "problem_index,population_size,crossover_probability," +
-            "mutation_probability,search_optimal,max_steps,obtained_fitness,num_evaluations,execution_time\n";
+            "mutation_probability,search_optimal,max_steps,optimal_fitness,optimal_percentage,best_fitness_last_pop," +
+            "avg_fitness_last_pop,shannon_entropy,num_evaluations,execution_time\n";
     public static final long MAX_NUMBER_EVALUATIONS = 50000000L;  // Max number of evaluations before resetting when searching for optimal
 
     private static List<String> getLineTokens(String line) {
@@ -37,7 +38,7 @@ public class Exe {
         List<List<String>> lines = new ArrayList<>();
         try (Scanner scanner = new Scanner(new File(filePath))) {
             while (scanner.hasNextLine()) {
-                List<String> lineTokens = Exe.getLineTokens(scanner.nextLine());
+                List<String> lineTokens = getLineTokens(scanner.nextLine());
                 if (!lineTokens.isEmpty()) {
                     lines.add(lineTokens);
                 }
@@ -114,8 +115,10 @@ public class Exe {
     }
 
     public static void writeResultToCsvFile(String filePath, int problemIndex, int popSize, double pc, double pm,
-                                            boolean searchForOptimal, long maxSteps, double obtainedFitness,
-                                            long numEvaluations, double executionTime) {
+                                            boolean searchForOptimal, long maxSteps, double optimalFitness,
+                                            double optimalPercentage, double bestFitnessLastPop,
+                                            double avgFitnessLastPop, double shannonEntropy, long numEvaluations,
+                                            double executionTime) {
         File f = new File(filePath);
         PrintWriter out = null;
 
@@ -125,14 +128,16 @@ public class Exe {
                 out = new PrintWriter(new FileOutputStream(f, true));
             } else {
                 out = new PrintWriter(filePath);
-                header = Exe.OUTPUT_CSV_HEADER;
+                header = OUTPUT_CSV_HEADER;
             }
             if (!header.isEmpty()) {
                 out.append(header);
             }
             String newLine = String.join(",", String.valueOf(problemIndex), String.valueOf(popSize),
                     String.valueOf(pc), String.valueOf(pm), String.valueOf(searchForOptimal), String.valueOf(maxSteps),
-                    String.valueOf(obtainedFitness), String.valueOf(numEvaluations), String.valueOf(executionTime));
+                    String.valueOf(optimalFitness), String.valueOf(optimalPercentage),
+                    String.valueOf(bestFitnessLastPop), String.valueOf(avgFitnessLastPop),
+                    String.valueOf(shannonEntropy), String.valueOf(numEvaluations), String.valueOf(executionTime));
             out.append(newLine + "\n");
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
@@ -141,6 +146,59 @@ public class Exe {
                 out.close();
             }
         }
+    }
+
+    private static double computePopulationEntropy(Algorithm ga) {
+        int chromosomeLength = ga.getChromosomeLength();
+        int[] sumPositiveAllelesPerChromosome = new int[chromosomeLength];
+        for (Individual individual : ga.getPopulation().getIndividuals()) {
+            for (int i = 0; i < chromosomeLength; i++) {
+                sumPositiveAllelesPerChromosome[i] += individual.get_allele(i);
+            }
+        }
+
+        // Shannon Entropy
+        double totalEntropy = 0.0;
+        for (int i = 0; i < chromosomeLength; i++) {
+            double p = sumPositiveAllelesPerChromosome[i]/(double)ga.getPopulationSize();
+            if (p == 0)
+                continue;
+            totalEntropy += (-p) * (Math.log(p) / Math.log(2));
+        }
+
+        return totalEntropy/(double)chromosomeLength;
+    }
+
+    private static void getMetricsAndWriteResult(Algorithm ga, int problemIndex, long maxSteps,
+                                                 boolean searchForOptimal, double optimalPercentage,
+                                                 String outputFilePath, long startTs, long endTs,
+                                                 boolean solutionFound) throws Exception {
+        Problem problem = ga.getProblem();
+
+        long numberEvaluations = problem.get_fitness_counter();
+        Individual solution = ga.get_solution();
+        double bestFitnessLastPop = solution.get_fitness();
+        double avgFitnessLastPop = ga.get_avgf();
+        if (solutionFound) {
+            System.out.println("Solution Found! After " + numberEvaluations + " evaluations");
+
+            // Print the solution
+            for (int i = 0; i < ga.getChromosomeLength(); i++) {
+                System.out.print(solution.get_allele(i));
+            }
+            System.out.println();
+            System.out.println("Solution fitness: " + bestFitnessLastPop);
+            System.out.println("Average population fitness: " + avgFitnessLastPop);
+        }
+        double shannonEntropy = computePopulationEntropy(ga);
+        System.out.println("Population entropy: " + shannonEntropy);
+        double executionTime = (endTs-startTs)/1000.0;
+        System.out.println("Elapsed time: " + executionTime + "s\n");
+
+        writeResultToCsvFile(outputFilePath, problemIndex, ga.getPopulationSize(), ga.getCrossoverProbability(),
+                ga.getMutationProbability(), searchForOptimal, maxSteps, problem.get_target_fitness(),
+                optimalPercentage, bestFitnessLastPop, avgFitnessLastPop, shannonEntropy, numberEvaluations,
+                executionTime);
     }
 
     /**
@@ -159,57 +217,49 @@ public class Exe {
      * @throws Exception
      */
     private static void execute(Problem problem, int problemIndex, int gn, int gl, int popSize, double pc, double pm,
-                                double tf, long maxSteps, boolean searchForOptimal,
+                                double tf, long maxSteps, boolean searchForOptimal, double optimalPercentage,
                                 String outputFilePath) throws Exception {
         problem.set_geneN(gn);
         problem.set_geneL(gl);
         problem.set_target_fitness(tf);
+
+        double targetFitnessRelaxation = tf * (optimalPercentage) / 100.0;
 
         Algorithm ga;          // The ssGA being used
         ga = new Algorithm(problem, popSize, gn, gl, pc, pm);
 
         long startTs = System.currentTimeMillis();  // Start timer
 
-        boolean stop = problem.tf_known() && (ga.get_solution().get_fitness() >= problem.get_target_fitness());
+        boolean stop = problem.tf_known() && (ga.get_solution().get_fitness() >= targetFitnessRelaxation);
         long step = 0L;
         boolean solutionFound = false;
+        long endTs;
         while (!stop) {
             ga.go_one_step();
             step++;
-            solutionFound = problem.tf_known() && (ga.get_solution().get_fitness() >= problem.get_target_fitness());
+            solutionFound = problem.tf_known() && (ga.get_solution().get_fitness() >= targetFitnessRelaxation);
             stop = (searchForOptimal && solutionFound) || (!searchForOptimal && step >= maxSteps);
-            if (searchForOptimal && !stop && problem.get_fitness_counter() >= Exe.MAX_NUMBER_EVALUATIONS) {
+
+            // if max allowed number of evaluations is reached when searching for the optimal fitness
+            if (searchForOptimal && !stop && problem.get_fitness_counter() >= MAX_NUMBER_EVALUATIONS) {
+                endTs = System.currentTimeMillis();  // End timer
+                getMetricsAndWriteResult(ga, problemIndex, maxSteps, true, optimalPercentage,
+                        outputFilePath, startTs, endTs, false);
+
+                // reset the search
                 problem.resetFitnessCounter();
                 step = 0L;
                 ga = new Algorithm(problem, popSize, gn, gl, pc, pm);
                 System.out.println("Resetting after not being able to find optimal solution in " +
-                        Exe.MAX_NUMBER_EVALUATIONS + " evaluations");
+                        MAX_NUMBER_EVALUATIONS + " evaluations");
                 startTs = System.currentTimeMillis();  // Reset timer
             }
         }
 
-        long endTs = System.currentTimeMillis();  // End timer
+        endTs = System.currentTimeMillis();  // End timer
 
-        long numberEvaluations = problem.get_fitness_counter();
-        if (solutionFound) {
-            System.out.println("Solution Found! After " + numberEvaluations + " evaluations");
-        }
-        double executionTime = (endTs-startTs)/1000.0;
-        System.out.println("Elapsed time: " + executionTime + "s");
-
-        Individual solution = ga.get_solution();
-        double obtainedFitness = solution.get_fitness();
-
-        // Print the solution
-        for (int i = 0; i < gn * gl; i++) {
-            System.out.print(solution.get_allele(i));
-        }
-        System.out.println();
-        System.out.println(obtainedFitness);
-
-        // Write results to the specified .csv file
-        writeResultToCsvFile(outputFilePath, problemIndex, popSize, pc, pm, searchForOptimal, maxSteps, obtainedFitness,
-                numberEvaluations, executionTime);
+        getMetricsAndWriteResult(ga, problemIndex, maxSteps, searchForOptimal, optimalPercentage, outputFilePath,
+                startTs, endTs, solutionFound);
     }
 
     /**
@@ -248,33 +298,44 @@ public class Exe {
 
         String outputFilePath = args[4];
 
-        List<List<String>> fileLines = Exe.readMKPFile(inputFilePath);
+        // Last argument is optional, and it is the percentage of the optimal that can be considered
+        // as reaching the optimal. By default, 100%, that is, if argument is not provided we will
+        // try to reach the optimal when searching for the optimal.
+        double optimalPercentage = 100;
+        if (args.length > 5) {
+            optimalPercentage = Double.parseDouble(args[5]);
+            if (optimalPercentage <= 0 || optimalPercentage > 100) {
+                throw new IllegalArgumentException("Invalid percentage of optimal");
+            }
+        }
+
+        List<List<String>> fileLines = readMKPFile(inputFilePath);
         int numProblemInstances = Integer.parseInt(fileLines.remove(0).get(0));
         if (instanceIndex >= numProblemInstances) {
             throw new IllegalArgumentException("Invalid index, make sure to specify one that exists given the " +
                     "number of instances in the file, starting at 0");
         }
-        List<ProblemMKP> problemInstances = Exe.getMKPInstances(numProblemInstances, instanceIndex, fileLines);
+        List<ProblemMKP> problemInstances = getMKPInstances(numProblemInstances, instanceIndex, fileLines);
 
         for (ProblemMKP instance : problemInstances) {
             System.out.println(instance);
 
             int geneNumber = instance.numItems;
             int geneLength = 1;
-            double targetFitness = instance.optimalFitness;
+            double targetFitness = instance.optimalFitness * (optimalPercentage / 100.0);
 
-            for (double crossoverProbability : Exe.CROSSOVER_PROBABILITIES) {
-                for (int numAvgExpectedMutations : Exe.NUMBER_AVG_EXPECTED_MUTATIONS) {
+            for (double crossoverProbability : CROSSOVER_PROBABILITIES) {
+                for (int numAvgExpectedMutations : NUMBER_AVG_EXPECTED_MUTATIONS) {
                     double mutationProbability = numAvgExpectedMutations / ((double) geneNumber * (double) geneLength);
                     for (boolean searchForOptimal : new boolean[]{false, true}) {
                         System.out.println("\nCrossover probability: " + crossoverProbability +
                                 ", mutation probability: " + mutationProbability + ", search for optimal: " +
                                 searchForOptimal);
-                        for (int i = 0; i < Exe.NUM_EXECUTIONS_PER_COMBINATION; i++) {
-                            System.out.println("Execution " + (i+1) + "/" + Exe.NUM_EXECUTIONS_PER_COMBINATION);
-                            Exe.execute(instance, instanceIndex, geneNumber, geneLength, populationSize,
+                        for (int i = 0; i < NUM_EXECUTIONS_PER_COMBINATION; i++) {
+                            System.out.println("Execution " + (i+1) + "/" + NUM_EXECUTIONS_PER_COMBINATION);
+                            execute(instance, instanceIndex, geneNumber, geneLength, populationSize,
                                     crossoverProbability, mutationProbability, targetFitness, maxSteps,
-                                    searchForOptimal, outputFilePath);
+                                    searchForOptimal, optimalPercentage, outputFilePath);
                             instance.resetFitnessCounter();  // Set the number of evaluations back to 0 after execution
                         }
                     }

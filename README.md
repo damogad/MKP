@@ -8,5 +8,5 @@ This code is based on the steady-state genetic algorithm (ssGA) that can be foun
 
 ```
 jar cfe mkp.jar ga.ssGA.Exe -C out/ ga/ssGA/
-java -jar mkp.jar <filepath>
+java -jar mkp.jar <input_file_path> <problem_index> <population_size> <number_evaluations> <output_file_path> <optimal_percentage(optional, default=100)>
 ```

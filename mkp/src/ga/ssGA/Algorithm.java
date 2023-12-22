@@ -40,6 +40,30 @@ public class Algorithm {
         pop.compute_stats();
     }
 
+    public Problem getProblem() {
+        return this.problem;
+    }
+
+    public Population getPopulation() {
+        return this.pop;
+    }
+
+    public int getChromosomeLength() {
+        return this.chrom_length;
+    }
+
+    public double getCrossoverProbability() {
+        return this.pc;
+    }
+
+    public double getMutationProbability() {
+        return this.pm;
+    }
+
+    public int getPopulationSize() {
+        return this.popsize;
+    }
+
     // BINARY TOURNAMENT
     public Individual select_tournament() throws Exception {
         int p1, p2;
