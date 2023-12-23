@@ -322,7 +322,7 @@ public class Exe {
 
             int geneNumber = instance.numItems;
             int geneLength = 1;
-            double targetFitness = instance.optimalFitness * (optimalPercentage / 100.0);
+            double targetFitness = instance.optimalFitness;
 
             for (double crossoverProbability : CROSSOVER_PROBABILITIES) {
                 for (int numAvgExpectedMutations : NUMBER_AVG_EXPECTED_MUTATIONS) {
@@ -330,7 +330,7 @@ public class Exe {
                     for (boolean searchForOptimal : new boolean[]{false, true}) {
                         System.out.println("\nCrossover probability: " + crossoverProbability +
                                 ", mutation probability: " + mutationProbability + ", search for optimal: " +
-                                searchForOptimal);
+                                searchForOptimal + ", optimal percentage: " + optimalPercentage);
                         for (int i = 0; i < NUM_EXECUTIONS_PER_COMBINATION; i++) {
                             System.out.println("Execution " + (i+1) + "/" + NUM_EXECUTIONS_PER_COMBINATION);
                             execute(instance, instanceIndex, geneNumber, geneLength, populationSize,
