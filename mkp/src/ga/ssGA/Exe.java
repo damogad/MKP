@@ -18,14 +18,26 @@ import java.util.Scanner;
 
 public class Exe {
 
+    // Number of executions for each combination of crossover probability, mutation probability and study type (search
+    // with limited evaluation or search for target fitness)
     public static final int NUM_EXECUTIONS_PER_COMBINATION = 30;
+    // Fixed crossover probabilities to be tested
     public static final double[] CROSSOVER_PROBABILITIES = new double[]{0.6, 0.7, 0.8, 0.9, 1.0};
+    // This constant is used to compute the mutation probability for each problem instance (num / chromosome length),
+    // meaning the average expected number of mutated bits (genes) by chance
     public static final int[] NUMBER_AVG_EXPECTED_MUTATIONS = new int[]{1, 2, 3, 4, 5};
+    // Header of the .csv output file with the execution results
     public static final String OUTPUT_CSV_HEADER = "problem_index,population_size,crossover_probability," +
             "mutation_probability,search_optimal,max_steps,optimal_fitness,optimal_percentage,best_fitness_last_pop," +
             "avg_fitness_last_pop,shannon_entropy,num_evaluations,execution_time\n";
-    public static final long MAX_NUMBER_EVALUATIONS = 50000000L;  // Max number of evaluations before resetting when searching for optimal
+    // Max number of evaluations before resetting when searching for optimal
+    public static final long MAX_NUMBER_EVALUATIONS = 50000000L;
 
+    /**
+     * Splits an input line into tokens.
+     * @param line input file line
+     * @return list of tokens
+     */
     private static List<String> getLineTokens(String line) {
         List<String> lineTokens = Arrays.asList(line.replaceAll("\\s+", " ").trim().split(" "));
         if (lineTokens.isEmpty() || (lineTokens.size() == 1 && lineTokens.get(0).isEmpty())) {
@@ -34,6 +46,12 @@ public class Exe {
         return lineTokens;
     }
 
+    /**
+     * Extracts all the lines of a mknap problem instances input file.
+     * @param filePath input file path (.txt)
+     * @return list of lines, each one tokenized
+     * @throws java.io.FileNotFoundException
+     */
     private static List<List<String>> readMKPFile(String filePath) throws java.io.FileNotFoundException {
         List<List<String>> lines = new ArrayList<>();
         try (Scanner scanner = new Scanner(new File(filePath))) {
@@ -50,7 +68,7 @@ public class Exe {
     /**
      * Parses a list of lines (tokens) from the input file with the format specified in
      * http://people.brunel.ac.uk/~mastjjb/jeb/orlib/mknapinfo.html.
-     * @param numberOfInstances
+     * @param numberOfInstances indicates the total number of problem instances defined in the input file
      * @param index if -1, all instances in the input file will be loaded; otherwise, the instance at the specified
      *              index (starting at 0) will be loaded.
      * @param lines list of lines from the input file, each one divided in tokens
@@ -114,6 +132,30 @@ public class Exe {
         return problemInstances;
     }
 
+    /**
+     * Writes the results of a ssGA execution to the provided output file in .csv format. If the file does not exist,
+     * it creates it.
+     * @param filePath .csv output file path
+     * @param problemIndex indicates the index (starting at 0) of the problem instance in the input file
+     * @param popSize size of the ssGA population
+     * @param pc crossover probability (search param)
+     * @param pm mutation probability (search param)
+     * @param searchForOptimal whether the ssGA has been executed with a fixed number of evaluations (false) or
+     *                         targeting the provided fitness (optimal or relaxed)
+     * @param maxSteps number of fixed evaluations (only relevant if searchForOptimal is false)
+     * @param optimalFitness the problem instance's optimal fitness (only relevant if searchForOptimal is true). The
+     *                       actual target fitness may be different (if optimalPercentage is < 100)
+     * @param optimalPercentage percentage of the optimalFitness that was targeted (only relevant if searchForOptimal is
+     *                          true)
+     * @param bestFitnessLastPop best fitness obtained with a single individual present in the last population of the
+     *                           ssGA
+     * @param avgFitnessLastPop average fitness obtained in the (complete) last population of the ssGA
+     * @param shannonEntropy average Shannon Entropy across bits (genes) of the last population's individuals
+     * @param numEvaluations number of total executed evaluations (if searchForOptimal is false, it will be equal to
+     *                       maxSteps + size of the population, as the evaluations on the first, randomly generated
+     *                       population is not considered for the limit of evaluations)
+     * @param executionTime ssGA execution time in seconds
+     */
     public static void writeResultToCsvFile(String filePath, int problemIndex, int popSize, double pc, double pm,
                                             boolean searchForOptimal, long maxSteps, double optimalFitness,
                                             double optimalPercentage, double bestFitnessLastPop,
@@ -148,6 +190,15 @@ public class Exe {
         }
     }
 
+    /**
+     * Computes the average Shannon Entropy of the bits (genes) in the population's individuals.
+     * For example, if there were just these two individuals in the population generated by the provided ssGA Algorithm:
+     * 01100110 and 01100110, the entropy would be 0. However, if they were 10011101 and 01100010, the entropy would be
+     * the maximum, 1, as it would be the average of the entropy of each bit (gene).
+     * @param ga Algorithm object which contains all the logic and the state of the ssGA
+     * @return average Shannon Entropy across bits (genes) of the population's individuals. It's a synonym of how
+     *         diverse the genotype is in the population, the higher (the closer to 1), the more diverse.
+     */
     private static double computePopulationEntropy(Algorithm ga) {
         int chromosomeLength = ga.getChromosomeLength();
         int[] sumPositiveAllelesPerChromosome = new int[chromosomeLength];
@@ -161,14 +212,28 @@ public class Exe {
         double totalEntropy = 0.0;
         for (int i = 0; i < chromosomeLength; i++) {
             double p = sumPositiveAllelesPerChromosome[i]/(double)ga.getPopulationSize();
-            if (p == 0)
-                continue;
-            totalEntropy += (-p) * (Math.log(p) / Math.log(2));
+            if (p > 0 && p < 1) {
+                totalEntropy += (-p) * (Math.log(p) / Math.log(2)) - (1-p) * (Math.log(1-p) / Math.log(2));
+            }
         }
 
         return totalEntropy/(double)chromosomeLength;
     }
 
+    /**
+     * Generates the metrics of the provided algorithm, writes to the standard output and to the .csv output file.
+     * @param ga Algorithm object which contains all the logic and the state of the ssGA
+     * @param problemIndex indicates the index (starting at 0) of the problem instance in the input file
+     * @param maxSteps maximum number of steps (i.e., evaluations) if searchForOptimal is false
+     * @param searchForOptimal true if the stopping criteria is reaching the target finess; false if the stopping
+     *                         criteria is the provided maximum number of steps
+     * @param optimalPercentage percentage of the target fitness to be reached if searchForOptimal is true
+     * @param outputFilePath path of the file where the result will be written
+     * @param startTs Unix timestamp corresponding to the beginning of the Algorithm execution
+     * @param endTs Unix timestamp corresponding to the end of the Algorithm execution
+     * @param solutionFound whether the target fitness has been reached or not
+     * @throws Exception
+     */
     private static void getMetricsAndWriteResult(Algorithm ga, int problemIndex, long maxSteps,
                                                  boolean searchForOptimal, double optimalPercentage,
                                                  String outputFilePath, long startTs, long endTs,
@@ -204,15 +269,17 @@ public class Exe {
     /**
      * Executes the ssGA algorithm on the provided problem instance
      * @param problem contains the problem instance information
+     * @param problemIndex indicates the index (starting at 0) of the problem instance in the input file
      * @param gn gene number
      * @param gl gene length
      * @param popSize population size
      * @param pc crossover probability
      * @param pm mutation probability
-     * @param tf target fitness value
-     * @param maxSteps maximum number of steps (i.e., evaluations)
-     * @param searchForOptimal true if the stopping criteria is reaching the target finess; false if the stopping
+     * @param tf target fitness value (optimal)
+     * @param maxSteps maximum number of steps (i.e., evaluations) if searchForOptimal is false
+     * @param searchForOptimal true if the stopping criteria is reaching the target fitness; false if the stopping
      *                         criteria is the provided maximum number of steps
+     * @param optimalPercentage percentage of the target fitness to be reached if searchForOptimal is true
      * @param outputFilePath path of the file where the result will be written
      * @throws Exception
      */
@@ -230,7 +297,7 @@ public class Exe {
 
         long startTs = System.currentTimeMillis();  // Start timer
 
-        boolean stop = problem.tf_known() && (ga.get_solution().get_fitness() >= targetFitnessRelaxation);
+        boolean stop = (searchForOptimal && problem.tf_known() && (ga.get_solution().get_fitness() >= targetFitnessRelaxation));
         long step = 0L;
         boolean solutionFound = false;
         long endTs;
@@ -264,13 +331,18 @@ public class Exe {
 
     /**
      * This function will launch the execution of the specified MKP problem instances for each combination of crossover
-     * and mutation 30 times.
+     * and mutation (and type of search or study, i.e., with a fixed number of evaluation or targeting the optimal
+     * fitness) 30 times for each.
      * @param args These are the arguments to be passed:
      *             - input file path with the problem instances
-     *             - index (starting at 0) of the problem instance in the input file
+     *             - index (starting at 0) of the problem instance in the input file. It can also be negative to
+     *               indicate that we want to run all the problems (which is not recommended unless you have several
+     *               hours of computation time).
      *             - population size
      *             - max number of steps
      *             - output file path (.csv)
+     *             - (optional) target percentage of the optimal fitness. If this is provided and is smaller than 100,
+     *               only the optimal search will be executed.
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
@@ -328,6 +400,10 @@ public class Exe {
                 for (int numAvgExpectedMutations : NUMBER_AVG_EXPECTED_MUTATIONS) {
                     double mutationProbability = numAvgExpectedMutations / ((double) geneNumber * (double) geneLength);
                     for (boolean searchForOptimal : new boolean[]{false, true}) {
+                        // If a percentage is provided, and it's not 100, we will just do the search for the optimal
+                        if (args.length > 5 && !searchForOptimal && optimalPercentage < 100) {
+                            continue;
+                        }
                         System.out.println("\nCrossover probability: " + crossoverProbability +
                                 ", mutation probability: " + mutationProbability + ", search for optimal: " +
                                 searchForOptimal + ", optimal percentage: " + optimalPercentage);
