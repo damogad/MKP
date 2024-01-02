@@ -48,7 +48,7 @@ str(df_study1)
 
 ## Small problem size
 
-The (relatively) small problem is the third one in the mknap1.txt file, which can be downloaded [here](http://people.brunel.ac.uk/~mastjjb/jeb/orlib/files/mknap1.txt). The argument that we pass to the executable or `.jar` to indicate which problem we want to execute the algorithm against is the index starting from 0, so in this case is '2':
+The (relatively) small problem is the third one in the mknap1.txt file, which can be downloaded [here](http://people.brunel.ac.uk/~mastjjb/jeb/orlib/files/mknap1.txt). It is an instance with 15 items and 10 knapsacks or constraints. The argument that we pass to the executable or `.jar` to indicate which problem we want to execute the algorithm against is the index starting from 0, so in this case is '2':
 
 ```{r}
 df_study1_small <- filter(df_study1, problem_index == 2)
@@ -139,19 +139,25 @@ df_study1_small_grouped <- df_study1_small %>%
   group_by(crossover_mutation) %>% 
   summarise(
     avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
     std_best_fitness_last_pop = sd(best_fitness_last_pop),
     avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
     .groups = 'keep'
   )
 df_study1_small_grouped <- as.data.frame(df_study1_small_grouped)
 df_study1_small_grouped
 ```
 
+Let's create a new column with both the crossover and the mutation probability:
+
 ```{r}
 df_study1_small <- as.data.frame(df_study1_small %>% 
   mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
 df_study1_small
 ```
+
+We could employ parametric tests in order to measure with combination of crossover and mutation probabilities (or each one individually) yields better results (we will use the deviation from the optimal fitness for that), but for that we would need to test that the results are approximately normal, or at least not have enough statistical evidence to say otherwise. Thus, let's apply the Shapiro-Wilk normality test to each combination of parameters:
 
 ```{r}
 for (combination in levels(as.factor(df_study1_small$crossover_mutation))) {
@@ -161,9 +167,13 @@ for (combination in levels(as.factor(df_study1_small$crossover_mutation))) {
 }
 ```
 
+As we can see, assuming an alpha value of 0.02, there's enough evidence in most of the tests to say that the samples are not normally distributed (null hypothesis is rejected). Thus, we won't apply any parametric tests. **We won't show the normality test anymore as the null hypothesis is always rejected, for all studies and problem sizes that we have executed. We encourage the reader to uncomment the commented cells in nexts sections to verify it.**
+
 ```{r}
 kruskal.test(optimal_deviation_best_last_pop ~ crossover_mutation, data = df_study1_small)
 ```
+
+The obtained p-value is smaller than 0.02, so there's enough statistical evidence to say that at least one of the combination of parameters does not come from the same population or distribution of values for the deviation from the optimal fitness. Thus, we can apply the Wilcoxon test to each pair of combinations with the [Benjamini & Hochberg correction](https://www.statisticshowto.com/benjamini-hochberg-procedure/):
 
 ```{r, warning=FALSE}
 pairwise.wilcox.test(x = df_study1_small$optimal_deviation_best_last_pop,
@@ -172,15 +182,17 @@ pairwise.wilcox.test(x = df_study1_small$optimal_deviation_best_last_pop,
                      paired = FALSE)
 ```
 
-We saw with the boxplots that the crossover probability may not be as influential as the mutation probability, so let's group them separately:
+There are many combinations for which the p-value is smaller than 0.02, thus being the deviation from the optimal fitness different between those. However, as we saw with the previous boxplot graphs that the crossover probability may not be as influential as the mutation probability, we could group and test them separately in order to extract conclusions:
 
 ```{r}
 df_study1_small_grouped_crossover <- df_study1_small %>% 
   group_by(crossover_probability) %>% 
   summarise(
     avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
     std_best_fitness_last_pop = sd(best_fitness_last_pop),
     avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
     .groups = 'keep'
   )
 df_study1_small_grouped_crossover <- as.data.frame(df_study1_small_grouped_crossover)
@@ -192,8 +204,10 @@ df_study1_small_grouped_mutation <- df_study1_small %>%
   group_by(mutation_probability) %>% 
   summarise(
     avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
     std_best_fitness_last_pop = sd(best_fitness_last_pop),
     avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
     .groups = 'keep'
   )
 df_study1_small_grouped_mutation <- as.data.frame(df_study1_small_grouped_mutation)
@@ -222,16 +236,358 @@ As we can see, every different mutation probability yields statistically signifi
 
 ## Medium problem size
 
-<!-- TODO -->
+This corresponds to the 5th problem in the `mknap1.txt` file, which consists of 28 items and 10 knapsacks or constraints. In fact, it shares the 15 first items of the small problem instance, but with 13 new items. In order to execute it, we have to provide the index 4, so we will filter by that problem index:
+
+```{r}
+df_study1_medium <- filter(df_study1, problem_index == 4)
+str(df_study1_medium)
+```
+Now, let's repeat the same procedure as with the small problem size. First we will drop some columns corresponding to fixed values or static parameters:
+
+```{r}
+summary(df_study1_medium[, colnames(df_study1_medium) %in% columns_to_drop])
+```
+As we can see, the population size that we used is the same as with the small problem size, but now the number of fixed evaluations is larger, 10000 (instead of 1000), and we can see that the optimal fitness is 12400, even though in this study it's not relevant to the execution. Let's compute the deviation from the optimal fitness:
+
+```{r}
+df_study1_medium <- ComputeFitnessDeviation(df_study1_medium)
+```
+Let's drop the previous columns:
+
+```{r}
+df_study1_medium <- DropColumns(df_study1_medium, columns_to_drop)
+```
+
+Let's check the correlation between the variables:
+
+```{r}
+corr <- cor(df_study1_medium)
+corr
+```
+
+```{r}
+corrplot(corr, method = "square")
+```
+
+Now, let's plot the best fitness in the last population by crossover probability, mutation probability and both:
+
+```{r}
+df_study1_medium %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = best_fitness_last_pop, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+We can see that the crossover probability does not seem to have a big effect on the obtained fitness. Let's check the mutation probability:
+
+```{r}
+df_study1_medium %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = best_fitness_last_pop, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+Mutation seems to be more influential on the obtained fitness. In contrast to the small problem size, in this case we can see that a too small or to big mutation probability may yield worse results, and a balanced value may be better. Let's plot each combination:
+
+```{r, fig.width=10}
+df_study1_medium %>% 
+  group_by(crossover_probability, mutation_probability) %>%
+  mutate(crossover_mutation = paste0(crossover_probability, "_", mutation_probability)) %>%
+  ggplot(mapping = aes(x = crossover_mutation, y = best_fitness_last_pop, color=crossover_mutation)) +
+    geom_boxplot() +
+    theme_bw() + 
+    scale_x_discrete(labels = NULL)
+```
+
+Let's see the average obtained fitness, its median and standard deviation and also how it is translated to the deviation from the optimal fitness:
+
+```{r}
+df_study1_medium_grouped <- df_study1_medium %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
+    std_best_fitness_last_pop = sd(best_fitness_last_pop),
+    avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
+    .groups = 'keep'
+  )
+df_study1_medium_grouped <- as.data.frame(df_study1_medium_grouped)
+df_study1_medium_grouped
+```
+
+```{r}
+df_study1_medium <- as.data.frame(df_study1_medium %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
+df_study1_medium
+```
+
+```{r}
+# for (combination in levels(as.factor(df_study1_medium$crossover_mutation))) {
+#   print(combination)
+#   print(shapiro.test(
+#     df_study1_medium[df_study1_medium$crossover_mutation == combination, 'optimal_deviation_best_last_pop']))
+# }
+```
+
+Now, let's run the Kruskal-Wallis test to check whether there's a combination of parameters for which there's enough statistical evidence to say that it does not belong to the same distribution:
+
+```{r}
+kruskal.test(optimal_deviation_best_last_pop ~ crossover_mutation, data = df_study1_medium)
+```
+
+We can see that the p-value is smaller than 0.02, so there's at least one combination of parameters that comes from a population with a different distribution of values for the deviation from the optimal fitness. Let's run the Wilcoxon test for each pair of combinations of parameters:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study1_medium$optimal_deviation_best_last_pop,
+                     g = df_study1_medium$crossover_mutation,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+Let's test crossover and mutation separately. If there is not enough evidence to say that crossover or mutation make a real difference in the results (separately), we would need to comeback to the pairwise results and check, along with the median values of the deviation from the optimal fitness, which combination would be better.
+
+```{r}
+df_study1_medium_grouped_crossover <- df_study1_medium %>% 
+  group_by(crossover_probability) %>% 
+  summarise(
+    avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
+    std_best_fitness_last_pop = sd(best_fitness_last_pop),
+    avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
+    .groups = 'keep'
+  )
+df_study1_medium_grouped_crossover <- as.data.frame(df_study1_medium_grouped_crossover)
+df_study1_medium_grouped_crossover
+```
+
+```{r}
+df_study1_medium_grouped_mutation <- df_study1_medium %>% 
+  group_by(mutation_probability) %>% 
+  summarise(
+    avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
+    std_best_fitness_last_pop = sd(best_fitness_last_pop),
+    avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
+    .groups = 'keep'
+  )
+df_study1_medium_grouped_mutation <- as.data.frame(df_study1_medium_grouped_mutation)
+df_study1_medium_grouped_mutation
+```
+
+```{r}
+kruskal.test(optimal_deviation_best_last_pop ~ crossover_probability, data = df_study1_medium)
+```
+
+We can see that there's not enough statistical evidence to assume that there's at least a crossover probability which yields a better median of the deviation from the optimal fitness. Let's test the mutation probability:
+
+```{r}
+kruskal.test(optimal_deviation_best_last_pop ~ mutation_probability, data = df_study1_medium)
+```
+
+The p-value is smaller than the 0.02 level of significance so let's apply the corrected Wilcoxon test between the results of every pair of mutation probabilities:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study1_medium$optimal_deviation_best_last_pop,
+                     g = df_study1_medium$mutation_probability,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+As we can see, there's enough evidence to say that each mutation probability yields different results compared to the rest, except between a probability of 0.0714285714285714 (average of 2 expected mutations in each individual) and 0.142857142857143 (average of 4 expected mutations in each individual). Thus, looking at the median deviation from the optimal fitness, it seems that using a mutation probability of 0.107142857142857 yields the best results, regardless the crossover (for the tested values of crossover, of course).
 
 
 ## Large problem size
 
-<!-- TODO -->
+The last problem instance that we will study is a relatively larger one, consisting of 50 items and 5 knapsacks. It corresponds to the 7th instance in the `mknap1.txt` file, which is the index 6:
+
+```{r}
+df_study1_large <- filter(df_study1, problem_index == 6)
+str(df_study1_large)
+```
+
+Let's repeat the same procedure as with the other instances:
+
+```{r}
+summary(df_study1_large[, colnames(df_study1_large) %in% columns_to_drop])
+```
+
+The population size that we used is twice the one we used for the previous two problems, as even if there are less constraints in the number of knapsacks, there are more items and it's harder to get a relatively 'good' number of feasible random solutions for the initial population. Also, the fixed number of executions is 1000000, and we can see that the optimal fitness is 16537 (only relevant for the second study). Let's compute the deviation from the optimal fitness:
+
+```{r}
+df_study1_large <- ComputeFitnessDeviation(df_study1_large)
+```
+
+Let's drop the previous columns:
+
+```{r}
+df_study1_large <- DropColumns(df_study1_large, columns_to_drop)
+```
+
+Let's check the correlation between the variables:
+
+```{r}
+corr <- cor(df_study1_large)
+corr
+```
+
+```{r}
+corrplot(corr, method = "square")
+```
+
+Now, let's plot the best fitness in the last population by crossover probability, mutation probability and both:
+
+```{r}
+df_study1_large %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = best_fitness_last_pop, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+As always so far the crossover probability does not seem to have at first glance any relevant effect on the obtained fitness. Let's check the mutation probability:
+
+```{r}
+df_study1_large %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = best_fitness_last_pop, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+Mutation seems to be more influential on the obtained fitness. In this case, it seems that a larger number of average mutated genes per individual is better (in the range that we have tested, from 1 to 5). This is different to the small instance (1 > 2 > 3 > 4 > 5) and the medium one (3 > 2-4 > 1 > 5). Thus, we can conclude that for smaller problems, if we compute the mutation probability given the number of expected mutated genes per individual on average (by chance), we should use smaller values than for larger problems.
+
+```{r, fig.width=10}
+df_study1_large %>% 
+  group_by(crossover_probability, mutation_probability) %>%
+  mutate(crossover_mutation = paste0(crossover_probability, "_", mutation_probability)) %>%
+  ggplot(mapping = aes(x = crossover_mutation, y = best_fitness_last_pop, color=crossover_mutation)) +
+    geom_boxplot() +
+    theme_bw() + 
+    scale_x_discrete(labels = NULL)
+```
+
+Let's see the average obtained fitness, its median and standard deviation and also how it is translated to the deviation from the optimal:
+
+```{r}
+df_study1_large_grouped <- df_study1_large %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
+    std_best_fitness_last_pop = sd(best_fitness_last_pop),
+    avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
+    .groups = 'keep'
+  )
+df_study1_large_grouped <- as.data.frame(df_study1_large_grouped)
+df_study1_large_grouped
+```
+
+Let's create a new attribute combining crossover and mutation probabilities for easing the testing of each one:
+
+```{r}
+df_study1_large <- as.data.frame(df_study1_large %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
+df_study1_large
+```
+
+```{r}
+# for (combination in levels(as.factor(df_study1_large$crossover_mutation))) {
+#   print(combination)
+#   print(shapiro.test(
+#     df_study1_large[df_study1_large$crossover_mutation == combination, 'optimal_deviation_best_last_pop']))
+# }
+```
+
+
+Let's run the Kruskal-Wallis test:
+
+```{r}
+kruskal.test(optimal_deviation_best_last_pop ~ crossover_mutation, data = df_study1_large)
+```
+
+We can see that the p-value is smaller than 0.02, so there's at least one combination of parameters that comes from a population with a different distribution of values for the deviation from the optimal fitness. Let's run the Wilcoxon test for each pair of combinations of parameters:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study1_large$optimal_deviation_best_last_pop,
+                     g = df_study1_large$crossover_mutation,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+As before, there are many pairs of combinations that yield different results when compared to each other. It is also nice to confirm that if we check the p-values of the tests between combinations with different crossover probability and the same mutation probability, they seem to be high and thus they would absolutely not be rejected in the test. Still, let's confirm it by applying tests to crossover and mutation probabilities separately:
+
+```{r}
+df_study1_large_grouped_crossover <- df_study1_large %>% 
+  group_by(crossover_probability) %>% 
+  summarise(
+    avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
+    std_best_fitness_last_pop = sd(best_fitness_last_pop),
+    avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
+    .groups = 'keep'
+  )
+df_study1_large_grouped_crossover <- as.data.frame(df_study1_large_grouped_crossover)
+df_study1_large_grouped_crossover
+```
+
+```{r}
+df_study1_large_grouped_mutation <- df_study1_large %>% 
+  group_by(mutation_probability) %>% 
+  summarise(
+    avg_best_fitness_last_pop = mean(best_fitness_last_pop),
+    median_best_fitness_last_pop = median(best_fitness_last_pop),
+    std_best_fitness_last_pop = sd(best_fitness_last_pop),
+    avg_optimal_deviation_best_last_pop = mean(optimal_deviation_best_last_pop),
+    median_optimal_deviation_best_last_pop = median(optimal_deviation_best_last_pop),
+    .groups = 'keep'
+  )
+df_study1_large_grouped_mutation <- as.data.frame(df_study1_large_grouped_mutation)
+df_study1_large_grouped_mutation
+```
+
+```{r}
+kruskal.test(optimal_deviation_best_last_pop ~ crossover_probability, data = df_study1_large)
+```
+
+We can confirm that there's not enough statistical evidence to assume that there's at least a crossover probability which yields a better median of the deviation from the optimal fitness. Let's test the mutation probability:
+
+```{r}
+kruskal.test(optimal_deviation_best_last_pop ~ mutation_probability, data = df_study1_large)
+```
+
+The p-value is smaller than the 0.02 level of significance so let's apply the corrected Wilcoxon test between the results of every pair of mutation probabilities:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study1_large$optimal_deviation_best_last_pop,
+                     g = df_study1_large$mutation_probability,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+For this instance, it seems that every mutation probability value yields different results to the rest in the deviation from the optimal fitness, as all the p-values are smaller than the 0.02 level of significance. Looking at the median and average results, it seems that a mutation probability of 0.1 yields the best results (regardless of the crossover probability in the grid of values that we checked).
+
 
 
 
 # Study 2: search for optimal fitness
+
+In this second study, the algorithm is executed until we reach the specified target fitness (which can be the optimal or some percentage of it as we will see in later sections), instead of a fixed number of evaluations. Thus, what we will measure to know which combination of parameters yields better results is the number of evaluations needed to reach that fitness.
 
 ```{r}
 df_study2 <- filter(df, search_optimal == 1)
@@ -244,6 +600,8 @@ str(df_study2)
 df_study2_small <- filter(df_study2, problem_index == 2)
 str(df_study2_small)
 ```
+
+Let's see some of the columns that we will drop as now are not relevant or they correspond to fixed parameters:
 
 ```{r}
 columns_to_drop <- c('problem_index', 'population_size', 'search_optimal', 'max_steps', 'optimal_fitness', 'optimal_percentage', 'best_fitness_last_pop')
@@ -282,6 +640,8 @@ df_study2_small %>%
         theme(legend.position = "none")
 ```
 
+At first glance, crossover does not seem to have a clear effect on the number of evaluations needed to reach the optimal fitness. Let's check the mutation probability:
+
 ```{r}
 df_study2_small %>%
     mutate(mutation_probability = as.factor(mutation_probability)) %>%
@@ -292,7 +652,7 @@ df_study2_small %>%
         theme(legend.position = "none")
 ```
 
-As with the first study, it seems that the optimal fitness is reached on average on a smaller number of evaluations when the mutation probability, even though there seems to be a little bit of instability with the smallest mutation probability (in contrast to the second smallest one, for example).
+Similarly to the first study, it seems that the optimal fitness is reached on average on a smaller number of evaluations when the mutation probability is smaller, even though there seems to be a little bit of instability with the smallest mutation probability (in contrast to the second smallest one, for example).
 
 ```{r, fig.width=10}
 df_study2_small %>% 
@@ -304,6 +664,7 @@ df_study2_small %>%
     scale_x_discrete(labels = NULL)
 ```
 
+Let's obtain the mean, median and standard deviation in the number of evaluations for each combination of crossover and mutation probabilities:
 
 ```{r}
 df_study2_small_grouped <- df_study2_small %>% 
@@ -311,6 +672,7 @@ df_study2_small_grouped <- df_study2_small %>%
   group_by(crossover_mutation) %>% 
   summarise(
     avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
     std_num_evaluations = sd(num_evaluations),
     .groups = 'keep'
   )
@@ -318,11 +680,17 @@ df_study2_small_grouped <- as.data.frame(df_study2_small_grouped)
 df_study2_small_grouped
 ```
 
+There are two combinations that stands out at first glance if we consider the balance of both the mean and the median: (crossover = 0.7, mutation = 0.0666666666666667) and (crossover = 0.7, mutation = 0.133333333333333). Between these two, the second one may be better as the standard deviation is considerably smaller, which may tell us that on different random seeds we may consistently get more similar results.
+
+Let's create a new variable with the value of both the crossover and the mutation probabilities for easier handling in the statistical tests:
+
 ```{r}
 df_study2_small <- as.data.frame(df_study2_small %>% 
   mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
 df_study2_small
 ```
+
+As now we are testing a different variable, we could check whether the number of evaluations comes from a normal distribution for each combination of parameters:
 
 ```{r}
 for (combination in levels(as.factor(df_study2_small$crossover_mutation))) {
@@ -331,12 +699,15 @@ for (combination in levels(as.factor(df_study2_small$crossover_mutation))) {
     df_study2_small[df_study2_small$crossover_mutation == combination, 'num_evaluations']))
 }
 ```
-Again, results seem not to be normal.
+
+The p-value for most of the samples is smaller than the 0.02 level of significance, so we can conclude that they are not drawn from a normal distribution. As in study 1, we will not show the result of this test for the other two problem instances as the null hypothesis is also rejected, but we encourage the reader to uncomment the code blocks and verify it by themselves.
+
+Now let's run the Kruskal-Wallis test:
 
 ```{r}
 kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_small)
 ```
-There's a significant statistical different at least between one of the combination of parameters and the rest, so let's check each pair with the Wilcoxon test:
+There's a significant statistical different at least between one of the combination of parameters and the rest when evaluating the number of evaluations, so let's check each pair with the Wilcoxon test:
 
 ```{r, warning=FALSE}
 pairwise.wilcox.test(x = df_study2_small$num_evaluations,
@@ -352,6 +723,7 @@ df_study2_small_grouped_crossover <- df_study2_small %>%
   group_by(crossover_probability) %>% 
   summarise(
     avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
     std_num_evaluations = sd(num_evaluations),
     .groups = 'keep'
   )
@@ -364,6 +736,7 @@ df_study2_small_grouped_mutation <- df_study2_small %>%
   group_by(mutation_probability) %>% 
   summarise(
     avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
     std_num_evaluations = sd(num_evaluations),
     .groups = 'keep'
   )
@@ -374,12 +747,13 @@ df_study2_small_grouped_mutation
 ```{r}
 kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_small)
 ```
-
+As we can see, there is not enough statistical evidence for rejecting the null hypothesis, so we can conclude that the different crossover values do not yield a significant difference compared to the rest. Let's test the mutation probability:
 
 ```{r}
 kruskal.test(num_evaluations ~ mutation_probability, data = df_study2_small)
 ```
 
+The p-value is smaller than 0.02, so we can reject the null hypothesis and confirm that there's enough evidence that at least one of the samples has not been drawn from the same population of the rest. Let's check it using the Wilcoxon test: 
 
 ```{r, warning=FALSE}
 pairwise.wilcox.test(x = df_study2_small$num_evaluations,
@@ -387,20 +761,608 @@ pairwise.wilcox.test(x = df_study2_small$num_evaluations,
                      p.adjust.method = "BH",
                      paired = FALSE)
 ```
-The result is very interesting, because even though the average number of evaluations is very different between a mutation probability of 0.0666666666666667 and 0.133333333333333, as this test measures the differences in the median, we conclude that there is not enough statistical support to affirm that the median number of evaluations is different, even though the average is clearly greater for 0.0666666666666667 as there are considerably more outliers. Still, 0.133333333333333 seems to yield more stable results accross different executions.
+The result is very interesting, because even though the average number of evaluations is very different between a mutation probability of 0.0666666666666667 and 0.133333333333333 (even though it is also true that standar deviation of the first one is considerably larger), as this test measures the differences in the median, we conclude that there is not enough statistical support to affirm that the median number of evaluations is different, even though the average is clearly greater for 0.0666666666666667 as there are considerably more outliers. Still, 0.133333333333333 seems to yield more stable results across different executions.
 
 
 ## Medium problem size
 
-<!-- TODO -->
+```{r}
+df_study2_medium <- filter(df_study2, problem_index == 4)
+str(df_study2_medium)
+```
+
+Let's see some of the columns that we will drop as now are not relevant or they correspond to fixed parameters:
+
+```{r}
+summary(df_study2_medium[, colnames(df_study2_medium) %in% columns_to_drop])
+```
+As we can see, we used the same population size as in the first study, targeting the optimal fitness of 12400. However, there's a value showing us that this optimal fitness was not always reached, and that's the minimum `best_fitness_last_pop` value, which is 12380 instead of 12400, the optimal. If we look at the previous block output, we can see that there are 756 executions instead of 750, and that's because the code is prepared to reset and launch an additional execution when the optimal is not reached after a maximum number of evaluations (50000000). As for this problem instance it only happened 6 times, we did not execute an additional search with a relaxed version of the problem (that's why we include the `optimal_percentage` parameter, in order to tell whether we target the optimal, 100%, or some percentage of it), but as we will see later, with a larger problem we actually carry out an additional search for a 'relaxed' optimal.
+
+Anyway, before dropping this columns, we will create an additional variable that will indicate whether the target fitness (`optimal_fitness * optimal_percentage/100`) was actually reached or not:
+
+```{r}
+ComputeTargetFitnessReached <- function(df) {
+  df$target_fitness_reached <- (df$best_fitness_last_pop - (df$optimal_fitness * df$optimal_percentage/100)) >= 0
+  print(summary(df$target_fitness_reached))
+  return(df)
+}
+```
+
+```{r}
+df_study2_medium <- ComputeTargetFitnessReached(df_study2_medium)
+```
+Now, let's drop the previous list of columns:
+
+```{r}
+df_study2_medium <- DropColumns(df_study2_medium, columns_to_drop)
+```
+
+And check the correlation between the variables:
+
+```{r}
+corr <- cor(df_study2_medium)
+corr
+```
+
+```{r}
+corrplot(corr, method = "square")
+```
+
+
+```{r}
+df_study2_medium %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = num_evaluations, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+```{r}
+df_study2_medium %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = num_evaluations, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+As we can see, there are a number of outliers, in this case several trials where an abnormal (large) number of executions where required (in addition to those that did not reach the optimal), so let's identify and filter some* of them in order to get a better visualization:
+
+_(*we will not get them using the IQR method as we still want to retain as many as possible to show them in the chart, so we will set a manual limit of 1000000 evaluations)_
+
+```{r}
+df_study2_medium %>% filter(num_evaluations > 1000000)
+```
+
+```{r}
+df_study2_medium_outliers_grouped <- df_study2_medium %>%
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    count = sum(num_evaluations > 1000000),
+    .groups = 'keep'
+  ) %>%
+  filter(count > 0)
+df_study2_medium_outliers_grouped <- as.data.frame(df_study2_medium_outliers_grouped)
+df_study2_medium_outliers_grouped
+```
+
+Looking at these cases (and the number of times it happened for each combination of parameters), we can see first of all that it may seem that extreme cases are more or less distributed between all the crossover probability values, but that is not the case with the mutation probability values: there are less extreme cases (meaning less executions with an very large number of evaluations) with smaller mutation probabilities.
+
+If we do not show these extreme cases (`num_evaluations`> 1000000):
+
+```{r}
+df_study2_medium %>%
+    filter(target_fitness_reached == TRUE, num_evaluations <= 1000000) %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = num_evaluations, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+The same tendency that we saw in previous studies still holds: not only for extreme cases the crossover probability seems to not affect too much, but also in general it does not seem to have a clear effect on the number of evaluations. Let's do the same with the mutation probability:
+
+```{r}
+df_study2_medium %>%
+    filter(target_fitness_reached == TRUE, num_evaluations <= 1000000) %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = num_evaluations, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+In contrast to the crossover probability, the mutation probability seems to have some effect on the number of evaluations, at least for smaller values it seems to be larger than when using greater mutation probability values. Let's show them for each combination separately:
+
+```{r, fig.width=10}
+df_study2_medium %>%
+  filter(target_fitness_reached == TRUE, num_evaluations <= 1000000) %>%
+  group_by(crossover_probability, mutation_probability) %>%
+  mutate(crossover_mutation = paste0(crossover_probability, "_", mutation_probability)) %>%
+  ggplot(mapping = aes(x = crossover_mutation, y = num_evaluations, color=crossover_mutation)) +
+    geom_boxplot() +
+    theme_bw() + 
+    scale_x_discrete(labels = NULL)
+```
+
+Now, let's compute the mean/median/std number of evaluations (with all the observations):
+
+```{r}
+df_study2_medium_grouped <- df_study2_medium %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    .groups = 'keep'
+  )
+df_study2_medium_grouped <- as.data.frame(df_study2_medium_grouped)
+df_study2_medium_grouped
+```
+
+Considering the balance between these three metrics, the (crossover=1, mutation=0.142857142857143) combination seems to be the best one, followed by (crossover=0.7, mutation=0.142857142857143). Let's create the new variable combining the crossover and mutation probabilities to run the Kruskal-Wallis test:
+
+```{r}
+df_study2_medium <- as.data.frame(df_study2_medium %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
+df_study2_medium
+```
+
+```{r}
+# for (combination in levels(as.factor(df_study2_medium$crossover_mutation))) {
+#   print(combination)
+#   print(shapiro.test(
+#     df_study2_medium[df_study2_medium$crossover_mutation == combination, 'num_evaluations']))
+# }
+```
+
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_medium)
+```
+
+The test gives us a p-value smaller than the 0.02 level of significance, so there's at least a combination of parameters that does not belong to the same population distribution as the rest. Let's apply the Wilcoxon test between each pair of combinations:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study2_medium$num_evaluations,
+                     g = df_study2_medium$crossover_mutation,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+We can see that, for example, the two combinations that we considered the best by looking at the three computed statistics can be considered as having the same median since the p-value is 0.69823, which is not smaller than 0.02 and thus for that pair the null hypothesis cannot be rejected.
+
+Let's test crossover and mutation probabilities separately:
+
+```{r}
+df_study2_medium_grouped_crossover <- df_study2_medium %>% 
+  group_by(crossover_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    .groups = 'keep'
+  )
+df_study2_medium_grouped_crossover <- as.data.frame(df_study2_medium_grouped_crossover)
+df_study2_medium_grouped_crossover
+```
+
+```{r}
+df_study2_medium_grouped_mutation <- df_study2_medium %>% 
+  group_by(mutation_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    .groups = 'keep'
+  )
+df_study2_medium_grouped_mutation <- as.data.frame(df_study2_medium_grouped_mutation)
+df_study2_medium_grouped_mutation
+```
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_medium)
+```
+
+Given the 0.02 level of significance, there is not enough statistical evidence to reject that all the samples come from the same population distribution when using different crossover probabilities. Let's check the mutation probability:
+
+```{r}
+kruskal.test(num_evaluations ~ mutation_probability, data = df_study2_medium)
+```
+
+The p-value is smaller than 0.02 so there's at least one mutation probability that yields a different number of evaluations than the rest, let's check it:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study2_medium$num_evaluations,
+                     g = df_study2_medium$mutation_probability,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+According to the results of this test, there is not enough evidence to reject that the median number of evaluations of 0.0714285714285714 with respect to 0.107142857142857, 0.142857142857143 and 0.178571428571429 is different to that of those, respectively. Besides these 3 pairs, the rest of pairs yields different results between each other. Looking at the balance between mean, median and std, we could say that the best option among the tested values is a mutation probability of 0.142857142857143.
 
 
 ## Large problem size
 
-<!-- TODO -->
+As we mentioned for the medium-sized problem instance, there can be some executions that do not reach the target fitness within a maximum number of evaluations. In the previous instance, we included those evaluations in the study as they were negligible (only 6 out of 756 total executions). However, as we will see in the next sections, that has not been the case with the large problem instance. Thus, we divide the study in two sub-studies: one strictly for reaching the optimal, and another for a relaxation of that optimal (99.5% and 99%).
+
+```{r}
+df_study2_large <- filter(df_study2, problem_index == 6)
+str(df_study2_large)
+```
+
+Before doing each study, we will create the new variable that indicates whether the target fitness (optimal or the specified percentage of it was reached):
+
+```{r}
+df_study2_large <- ComputeTargetFitnessReached(df_study2_large)
+```
 
 ### Search for optimal
 
+```{r}
+df_study2_large_optimal <- filter(df_study2_large, optimal_percentage == 100.0)
+str(df_study2_large_optimal)
+```
+
+As we can see, there are 435 additional executions which indicates that there are as many as that number of executions in which the algorithm was not able to reach the optimal fitness.
+
+```{r}
+summary(df_study2_large_optimal[, colnames(df_study2_large_optimal) %in% columns_to_drop])
+```
+
+```{r}
+df_study2_large_optimal <- DropColumns(df_study2_large_optimal, columns_to_drop)
+```
+
+
+```{r}
+corr <- cor(df_study2_large_optimal)
+corr
+```
+
+```{r}
+corrplot(corr, method = "square")
+```
+
+
+```{r}
+df_study2_large_optimal %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = num_evaluations, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+```{r}
+df_study2_large_optimal %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = num_evaluations, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+```{r, fig.width=10}
+df_study2_large_optimal %>%
+  group_by(crossover_probability, mutation_probability) %>%
+  mutate(crossover_mutation = paste0(crossover_probability, "_", mutation_probability)) %>%
+  ggplot(mapping = aes(x = crossover_mutation, y = num_evaluations, color=crossover_mutation)) +
+    geom_boxplot() +
+    theme_bw() + 
+    scale_x_discrete(labels = NULL)
+```
+
+```{r}
+df_study2_large_optimal_grouped <- df_study2_large_optimal %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_optimal_grouped <- as.data.frame(df_study2_large_optimal_grouped)
+df_study2_large_optimal_grouped
+```
+
+
+```{r}
+df_study2_large_optimal <- as.data.frame(df_study2_large_optimal %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
+df_study2_large_optimal
+```
+
+```{r}
+# for (combination in levels(as.factor(df_study2_large_optimal$crossover_mutation))) {
+#   print(combination)
+#   print(shapiro.test(
+#     df_study2_large_optimal[df_study2_large_optimal$crossover_mutation == combination, 'num_evaluations']))
+# }
+```
+
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_large_optimal)
+```
+
+The test gives us a p-value smaller than the 0.02 level of significance, so there's at least a combination of parameters that does not belong to the same population distribution as the rest. Let's apply the Wilcoxon test between each pair of combinations:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study2_large_optimal$num_evaluations,
+                     g = df_study2_large_optimal$crossover_mutation,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+```{r}
+df_study2_large_optimal_grouped_crossover <- df_study2_large_optimal %>% 
+  group_by(crossover_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_optimal_grouped_crossover <- as.data.frame(df_study2_large_optimal_grouped_crossover)
+df_study2_large_optimal_grouped_crossover
+```
+
+
+```{r}
+df_study2_large_optimal_grouped_mutation <- df_study2_large_optimal %>% 
+  group_by(mutation_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_optimal_grouped_mutation <- as.data.frame(df_study2_large_optimal_grouped_mutation)
+df_study2_large_optimal_grouped_mutation
+```
+
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_large_optimal)
+```
+
+```{r}
+kruskal.test(num_evaluations ~ mutation_probability, data = df_study2_large_optimal)
+```
+
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study2_large_optimal$num_evaluations,
+                     g = df_study2_large_optimal$mutation_probability,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
 
 ### Optimal relaxation
+
+In this case the objective was a fairer study, so trying to reach the target fitness as many times as possible.
+
+```{r}
+df_study2_large_99_5 <- filter(df_study2_large, optimal_percentage == 99.5)
+str(df_study2_large_99_5)
+```
+
+```{r}
+df_study2_large_99 <- filter(df_study2_large, optimal_percentage == 99.0)
+str(df_study2_large_99)
+```
+
+```{r}
+df_study2_large_relaxed <- df_study2_large_99
+```
+
+
+```{r}
+summary(df_study2_large_relaxed[, colnames(df_study2_large_relaxed) %in% columns_to_drop])
+```
+
+
+```{r}
+df_study2_large_relaxed <- DropColumns(df_study2_large_relaxed, columns_to_drop)
+```
+
+
+```{r}
+corr <- cor(df_study2_large_relaxed)
+corr
+```
+
+
+```{r}
+corrplot(corr, method = "square")
+```
+
+
+```{r}
+df_study2_large_relaxed %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = num_evaluations, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+
+```{r}
+df_study2_large_relaxed %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = num_evaluations, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+
+```{r}
+df_study2_large_relaxed %>% filter(num_evaluations > 100000)
+```
+
+```{r}
+df_study2_large_relaxed_outliers_grouped <- df_study2_large_relaxed %>%
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    count = sum(num_evaluations > 100000),
+    .groups = 'keep'
+  ) %>%
+  filter(count > 0)
+df_study2_large_relaxed_outliers_grouped <- as.data.frame(df_study2_large_relaxed_outliers_grouped)
+df_study2_large_relaxed_outliers_grouped
+```
+
+
+```{r}
+df_study2_large_relaxed %>%
+    filter(target_fitness_reached == TRUE, num_evaluations <= 100000) %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = num_evaluations, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+
+```{r}
+df_study2_large_relaxed %>%
+    filter(target_fitness_reached == TRUE, num_evaluations <= 100000) %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = num_evaluations, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+
+```{r, fig.width=10}
+df_study2_large_relaxed %>%
+  filter(target_fitness_reached == TRUE, num_evaluations <= 100000) %>%
+  group_by(crossover_probability, mutation_probability) %>%
+  mutate(crossover_mutation = paste0(crossover_probability, "_", mutation_probability)) %>%
+  ggplot(mapping = aes(x = crossover_mutation, y = num_evaluations, color=crossover_mutation)) +
+    geom_boxplot() +
+    theme_bw() + 
+    scale_x_discrete(labels = NULL)
+```
+
+
+```{r}
+df_study2_large_relaxed_grouped <- df_study2_large_relaxed %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_relaxed_grouped <- as.data.frame(df_study2_large_relaxed_grouped)
+df_study2_large_relaxed_grouped
+```
+
+
+```{r}
+df_study2_large_relaxed <- as.data.frame(df_study2_large_relaxed %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
+df_study2_large_relaxed
+```
+
+
+```{r}
+# for (combination in levels(as.factor(df_study2_large_relaxed$crossover_mutation))) {
+#   print(combination)
+#   print(shapiro.test(
+#     df_study2_large_relaxed[df_study2_large_relaxed$crossover_mutation == combination, 'num_evaluations']))
+# }
+```
+
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_large_relaxed)
+```
+
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study2_large_relaxed$num_evaluations,
+                     g = df_study2_large_relaxed$crossover_mutation,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+
+```{r}
+df_study2_large_relaxed_grouped_crossover <- df_study2_large_relaxed %>% 
+  group_by(crossover_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_relaxed_grouped_crossover <- as.data.frame(df_study2_large_relaxed_grouped_crossover)
+df_study2_large_relaxed_grouped_crossover
+```
+
+
+```{r}
+df_study2_large_relaxed_grouped_mutation <- df_study2_large_relaxed %>% 
+  group_by(mutation_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_relaxed_grouped_mutation <- as.data.frame(df_study2_large_relaxed_grouped_mutation)
+df_study2_large_relaxed_grouped_mutation
+```
+
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_large_relaxed)
+```
+
+```{r}
+kruskal.test(num_evaluations ~ mutation_probability, data = df_study2_large_relaxed)
+```
+
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study2_large_relaxed$num_evaluations,
+                     g = df_study2_large_relaxed$mutation_probability,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
 
