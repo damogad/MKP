@@ -175,11 +175,19 @@ kruskal.test(optimal_deviation_best_last_pop ~ crossover_mutation, data = df_stu
 
 The obtained p-value is smaller than 0.02, so there's enough statistical evidence to say that at least one of the combination of parameters does not come from the same population or distribution of values for the deviation from the optimal fitness. Thus, we can apply the Wilcoxon test to each pair of combinations with the [Benjamini & Hochberg correction](https://www.statisticshowto.com/benjamini-hochberg-procedure/):
 
+```{r}
+GetNumberDifferentPairs <- function(wilcoxon_test_result, alpha) {
+  sprintf("Number of different pairs: %d", length(which(wilcoxon_test_result$p.value < alpha)))
+}
+```
+
 ```{r, warning=FALSE}
-pairwise.wilcox.test(x = df_study1_small$optimal_deviation_best_last_pop,
-                     g = df_study1_small$crossover_mutation,
-                     p.adjust.method = "BH",
-                     paired = FALSE)
+result <- pairwise.wilcox.test(x = df_study1_small$optimal_deviation_best_last_pop,
+                               g = df_study1_small$crossover_mutation,
+                               p.adjust.method = "BH",
+                               paired = FALSE)
+print(result)
+GetNumberDifferentPairs(result, 0.02)
 ```
 
 There are many combinations for which the p-value is smaller than 0.02, thus being the deviation from the optimal fitness different between those. However, as we saw with the previous boxplot graphs that the crossover probability may not be as influential as the mutation probability, we could group and test them separately in order to extract conclusions:
@@ -346,11 +354,14 @@ kruskal.test(optimal_deviation_best_last_pop ~ crossover_mutation, data = df_stu
 We can see that the p-value is smaller than 0.02, so there's at least one combination of parameters that comes from a population with a different distribution of values for the deviation from the optimal fitness. Let's run the Wilcoxon test for each pair of combinations of parameters:
 
 ```{r, warning=FALSE}
-pairwise.wilcox.test(x = df_study1_medium$optimal_deviation_best_last_pop,
-                     g = df_study1_medium$crossover_mutation,
-                     p.adjust.method = "BH",
-                     paired = FALSE)
+result <- pairwise.wilcox.test(x = df_study1_medium$optimal_deviation_best_last_pop,
+                               g = df_study1_medium$crossover_mutation,
+                               p.adjust.method = "BH",
+                               paired = FALSE)
+print(result)
+GetNumberDifferentPairs(result, 0.02)
 ```
+
 Let's test crossover and mutation separately. If there is not enough evidence to say that crossover or mutation make a real difference in the results (separately), we would need to comeback to the pairwise results and check, along with the median values of the deviation from the optimal fitness, which combination would be better.
 
 ```{r}
@@ -523,10 +534,12 @@ kruskal.test(optimal_deviation_best_last_pop ~ crossover_mutation, data = df_stu
 We can see that the p-value is smaller than 0.02, so there's at least one combination of parameters that comes from a population with a different distribution of values for the deviation from the optimal fitness. Let's run the Wilcoxon test for each pair of combinations of parameters:
 
 ```{r, warning=FALSE}
-pairwise.wilcox.test(x = df_study1_large$optimal_deviation_best_last_pop,
-                     g = df_study1_large$crossover_mutation,
-                     p.adjust.method = "BH",
-                     paired = FALSE)
+result <- pairwise.wilcox.test(x = df_study1_large$optimal_deviation_best_last_pop,
+                               g = df_study1_large$crossover_mutation,
+                               p.adjust.method = "BH",
+                               paired = FALSE)
+print(result)
+GetNumberDifferentPairs(result, 0.02)
 ```
 
 As before, there are many pairs of combinations that yield different results when compared to each other. It is also nice to confirm that if we check the p-values of the tests between combinations with different crossover probability and the same mutation probability, they seem to be high and thus they would absolutely not be rejected in the test. Still, let's confirm it by applying tests to crossover and mutation probabilities separately:
@@ -710,10 +723,12 @@ kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_small)
 There's a significant statistical different at least between one of the combination of parameters and the rest when evaluating the number of evaluations, so let's check each pair with the Wilcoxon test:
 
 ```{r, warning=FALSE}
-pairwise.wilcox.test(x = df_study2_small$num_evaluations,
-                     g = df_study2_small$crossover_mutation,
-                     p.adjust.method = "BH",
-                     paired = FALSE)
+result <- pairwise.wilcox.test(x = df_study2_small$num_evaluations,
+                               g = df_study2_small$crossover_mutation,
+                               p.adjust.method = "BH",
+                               paired = FALSE)
+print(result)
+GetNumberDifferentPairs(result, 0.02)
 ```
 
 As we saw that there seems to be some difference in the number of evaluations given different values of the mutation probability and no remarkable difference with the different crossover probabilities, let's check it grouped separately:
@@ -747,6 +762,7 @@ df_study2_small_grouped_mutation
 ```{r}
 kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_small)
 ```
+
 As we can see, there is not enough statistical evidence for rejecting the null hypothesis, so we can conclude that the different crossover values do not yield a significant difference compared to the rest. Let's test the mutation probability:
 
 ```{r}
@@ -761,6 +777,7 @@ pairwise.wilcox.test(x = df_study2_small$num_evaluations,
                      p.adjust.method = "BH",
                      paired = FALSE)
 ```
+
 The result is very interesting, because even though the average number of evaluations is very different between a mutation probability of 0.0666666666666667 and 0.133333333333333 (even though it is also true that standar deviation of the first one is considerably larger), as this test measures the differences in the median, we conclude that there is not enough statistical support to affirm that the median number of evaluations is different, even though the average is clearly greater for 0.0666666666666667 as there are considerably more outliers. Still, 0.133333333333333 seems to yield more stable results across different executions.
 
 
@@ -934,10 +951,12 @@ kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_medium)
 The test gives us a p-value smaller than the 0.02 level of significance, so there's at least a combination of parameters that does not belong to the same population distribution as the rest. Let's apply the Wilcoxon test between each pair of combinations:
 
 ```{r, warning=FALSE}
-pairwise.wilcox.test(x = df_study2_medium$num_evaluations,
-                     g = df_study2_medium$crossover_mutation,
-                     p.adjust.method = "BH",
-                     paired = FALSE)
+result <- pairwise.wilcox.test(x = df_study2_medium$num_evaluations,
+                               g = df_study2_medium$crossover_mutation,
+                               p.adjust.method = "BH",
+                               paired = FALSE)
+print(result)
+GetNumberDifferentPairs(result, 0.02)
 ```
 
 We can see that, for example, the two combinations that we considered the best by looking at the three computed statistics can be considered as having the same median since the p-value is 0.69823, which is not smaller than 0.02 and thus for that pair the null hypothesis cannot be rejected.
@@ -1045,6 +1064,8 @@ df_study2_large_optimal %>%
         theme(legend.position = "none")
 ```
 
+Again, the crossover probability does not seem to have a clear effect on the number of executions.
+
 ```{r}
 df_study2_large_optimal %>%
     mutate(mutation_probability = as.factor(mutation_probability)) %>%
@@ -1055,6 +1076,8 @@ df_study2_large_optimal %>%
         theme(legend.position = "none")
 ```
 
+Regarding the mutation probability, the same pattern we saw in the first study with the obtained fitness also holds for the number of evaluations, in the sense that a higher value yields better results (a smaller number of evaluations).
+
 ```{r, fig.width=10}
 df_study2_large_optimal %>%
   group_by(crossover_probability, mutation_probability) %>%
@@ -1064,6 +1087,8 @@ df_study2_large_optimal %>%
     theme_bw() + 
     scale_x_discrete(labels = NULL)
 ```
+
+Let's compute the mean, median and standard deviation of the number of evaluations and how many times the optimal was not reached out of the total number of executions for each combination of parameters (**taking into account that we executed each combination until we obtained 30 executions where the optimal was reached**):
 
 ```{r}
 df_study2_large_optimal_grouped <- df_study2_large_optimal %>% 
@@ -1080,34 +1105,9 @@ df_study2_large_optimal_grouped <- as.data.frame(df_study2_large_optimal_grouped
 df_study2_large_optimal_grouped
 ```
 
+As we can see, it seems that most of the executions where the optimal was not reached correspond to using the smallest tested mutation probability (0.02). Also, we had such cases for every tested combination.
 
-```{r}
-df_study2_large_optimal <- as.data.frame(df_study2_large_optimal %>% 
-  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)))
-df_study2_large_optimal
-```
-
-```{r}
-# for (combination in levels(as.factor(df_study2_large_optimal$crossover_mutation))) {
-#   print(combination)
-#   print(shapiro.test(
-#     df_study2_large_optimal[df_study2_large_optimal$crossover_mutation == combination, 'num_evaluations']))
-# }
-```
-
-
-```{r}
-kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_large_optimal)
-```
-
-The test gives us a p-value smaller than the 0.02 level of significance, so there's at least a combination of parameters that does not belong to the same population distribution as the rest. Let's apply the Wilcoxon test between each pair of combinations:
-
-```{r, warning=FALSE}
-pairwise.wilcox.test(x = df_study2_large_optimal$num_evaluations,
-                     g = df_study2_large_optimal$crossover_mutation,
-                     p.adjust.method = "BH",
-                     paired = FALSE)
-```
+We can check that count for grouped by crossover and mutation probabilities, separately:
 
 ```{r}
 df_study2_large_optimal_grouped_crossover <- df_study2_large_optimal %>% 
@@ -1123,6 +1123,7 @@ df_study2_large_optimal_grouped_crossover <- as.data.frame(df_study2_large_optim
 df_study2_large_optimal_grouped_crossover
 ```
 
+We can see that a crossover probability of 1.0 seems to yield more executions where the optimal was not reached, but the difference comparing with the rest of values is not huge, there isn't a clear pattern. Let's group by mutation probability:
 
 ```{r}
 df_study2_large_optimal_grouped_mutation <- df_study2_large_optimal %>% 
@@ -1138,15 +1139,116 @@ df_study2_large_optimal_grouped_mutation <- as.data.frame(df_study2_large_optima
 df_study2_large_optimal_grouped_mutation
 ```
 
+In contrast to the crossover probability, for the mutation probability there's a value which clearly stands out as not very suitable to reach the optimal fitness, and that's the smallest tested value, 0.02. It seems that the higher the mutation probability (in the tested range of values), the less probable that we do not reach the optimal.
+
+**Directly comparing the different samples may not be a good strategy if we do not filter those cases where we do not reach the optimal, as those samples may have a different number of executions (for example, 30 executions where the optimal was reached + 56 where it was not reached for a total of 86 executions where carried out for the 0.6,0.02 combination, while for others, for example 1.0,0.08, the number of executions is considerably smaller, 33 in that case). Thus, we will filter such cases, so that for each combination we will have 30 executions. In the next subsection, we will carry out a fairer comparison as we will relax the target fitness to be a slightly smaller percentage of the optimal fitness.**
+
+```{r}
+df_study2_large_optimal <- as.data.frame(df_study2_large_optimal %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability))) %>%
+  filter(target_fitness_reached == TRUE)
+df_study2_large_optimal
+```
+
+```{r}
+df_study2_large_optimal %>%
+    mutate(crossover_probability = as.factor(crossover_probability)) %>%
+    group_by(crossover_probability) %>%
+    ggplot(mapping = aes(x = crossover_probability, y = num_evaluations, color=crossover_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+It seems that if do not consider the 'unfinished' executions, the crossover probability seems to have some influence in the dispersion of the number of evaluations (we can see that the 3rd quartile is smaller with a value of 0.9 and 0.1, but there is no clear pattern as between 0.6 and 0.8 it seems to increase); still, the median seems to be very similar for all of the tested values.
+
+```{r}
+df_study2_large_optimal %>%
+    mutate(mutation_probability = as.factor(mutation_probability)) %>%
+    group_by(mutation_probability) %>%
+    ggplot(mapping = aes(x = mutation_probability, y = num_evaluations, color=mutation_probability)) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(legend.position = "none")
+```
+
+The same effect that when considering the 'unfinished' executions can be observed with the mutation probability: one might say that the higher the value (in the tested range), the better.
+
+```{r, fig.width=10}
+df_study2_large_optimal %>%
+  group_by(crossover_probability, mutation_probability) %>%
+  mutate(crossover_mutation = paste0(crossover_probability, "_", mutation_probability)) %>%
+  ggplot(mapping = aes(x = crossover_mutation, y = num_evaluations, color=crossover_mutation)) +
+    geom_boxplot() +
+    theme_bw() + 
+    scale_x_discrete(labels = NULL)
+```
+
+
+```{r}
+# for (combination in levels(as.factor(df_study2_large_optimal$crossover_mutation))) {
+#   print(combination)
+#   print(shapiro.test(
+#     df_study2_large_optimal[df_study2_large_optimal$crossover_mutation == combination, 'num_evaluations']))
+# }
+```
+
+Now let's execute the Kruskal-Wallis test:
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_large_optimal)
+```
+
+The test gives us a p-value smaller than the 0.02 level of significance, so there's at least a combination of parameters that does not belong to the same population distribution as the rest. Let's apply the Wilcoxon test between each pair of combinations:
+
+```{r, warning=FALSE}
+result <- pairwise.wilcox.test(x = df_study2_large_optimal$num_evaluations,
+                               g = df_study2_large_optimal$crossover_mutation,
+                               p.adjust.method = "BH",
+                               paired = FALSE)
+print(result)
+GetNumberDifferentPairs(result, 0.02)
+```
+
+Let's group by crossover probabilities, then mutation probabilities, separately:
 
 ```{r}
 kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_large_optimal)
 ```
 
+As we mentioned before, it seems that the crossover in this case actually has some influence on the number of evaluations, as the obtained p-value is smaller than the 0.02 level of significance which means that at least one value yields different results compared to the rest. Let's check it with the Wilcoxon test:
+
+```{r, warning=FALSE}
+pairwise.wilcox.test(x = df_study2_large_optimal$num_evaluations,
+                     g = df_study2_large_optimal$crossover_probability,
+                     p.adjust.method = "BH",
+                     paired = FALSE)
+```
+
+We can see that the 0.6, 0.7 and 0.8 values can be considered as giving us similar results; however, a crossover probability of 0.9 or 1.0 (any of those, as we can assume that this pair also gives similar results given their p-value of 0.5832, or at least we cannot reject that they do) yields different results to the previously mentioned ones. Let's check it (remember that the previous mean/median/std number of evaluations included the executions where the optimal was not reached and now we filtered them for the tests):
+
+```{r}
+df_study2_large_optimal_grouped_crossover <- df_study2_large_optimal %>% 
+  group_by(crossover_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    .groups = 'keep'
+  )
+df_study2_large_optimal_grouped_crossover <- as.data.frame(df_study2_large_optimal_grouped_crossover)
+df_study2_large_optimal_grouped_crossover
+```
+
+Indeed, we can say that a crossover probability value of 0.9 or 1.0 seem to yield a considerably smaller number of evaluations.
+
+Now, let's check the effect of the mutation probability alone:
+
 ```{r}
 kruskal.test(num_evaluations ~ mutation_probability, data = df_study2_large_optimal)
 ```
 
+As expected, at least one mutation probability yields a different distribution on the number of evaluations compared to the rest, given the p-value smaller than 0.02.
 
 ```{r, warning=FALSE}
 pairwise.wilcox.test(x = df_study2_large_optimal$num_evaluations,
@@ -1155,20 +1257,127 @@ pairwise.wilcox.test(x = df_study2_large_optimal$num_evaluations,
                      paired = FALSE)
 ```
 
+We can see that in almost all the pairs one mutation probability yields a different median of number of evaluations than the other, except between 0.06 and 0.08, and 0.06 and 0.1. Let's check the mean/median/std values:
+
+```{r}
+df_study2_large_optimal_grouped_mutation <- df_study2_large_optimal %>% 
+  group_by(mutation_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    .groups = 'keep'
+  )
+df_study2_large_optimal_grouped_mutation <- as.data.frame(df_study2_large_optimal_grouped_mutation)
+df_study2_large_optimal_grouped_mutation
+```
+
+In this case, as both the crossover and mutation probabilities seem to have a significant effect on the obtained number of evaluations, we should check which is the better combination of both:
+
+```{r}
+df_study2_large_optimal_grouped <- df_study2_large_optimal %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    .groups = 'keep'
+  )
+df_study2_large_optimal_grouped <- as.data.frame(df_study2_large_optimal_grouped)
+df_study2_large_optimal_grouped
+```
+
+Looking at the balance between the mean, median and standard deviation, and the previous results, it seems that the best combination is crossover=1.0, mutation=0.08.
+
 
 ### Optimal relaxation
 
-In this case the objective was a fairer study, so trying to reach the target fitness as many times as possible.
+In this case the objective was to carry out a fairer study, so trying to reach the target fitness as many times as possible. We evaluated the algorithm on the 99.5% and the 99% of the optimal fitness of the large problem instance in order to achieve that.
+
+Let's briefly check the summary of both groups of executions:
 
 ```{r}
 df_study2_large_99_5 <- filter(df_study2_large, optimal_percentage == 99.5)
 str(df_study2_large_99_5)
 ```
 
+As we can see, when targeting the 99.5% of the optimal fitness, we still got 77 'unfinished' executions, that did not reach the target fitness. Let's check how those executions are distributed:
+
+```{r}
+df_study2_large_99_5_grouped <- df_study2_large_99_5 %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  ) %>%
+  filter(optimal_not_reached > 0)
+df_study2_large_99_5_grouped <- as.data.frame(df_study2_large_99_5_grouped)
+df_study2_large_99_5_grouped
+```
+
+
+```{r}
+df_study2_large_99_5_grouped_crossover <- df_study2_large_99_5 %>% 
+  group_by(crossover_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_99_5_grouped_crossover <- as.data.frame(df_study2_large_99_5_grouped_crossover)
+df_study2_large_99_5_grouped_crossover
+```
+
+
+```{r}
+df_study2_large_99_5_grouped_mutation <- df_study2_large_99_5 %>% 
+  group_by(mutation_probability) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  )
+df_study2_large_99_5_grouped_mutation <- as.data.frame(df_study2_large_99_5_grouped_mutation)
+df_study2_large_99_5_grouped_mutation
+```
+
+Most of the unfinished executions correspond to those combinations where the mutation probability is 0.02; also, we still see that the greater that value, the less such cases we got. Regarding the crossover probability, they are evenly distributed among the different tested values, so the fact that in the previous study the 1.0 value stood out was probably due to chance.
+
+Let's check the 99% study:
+
 ```{r}
 df_study2_large_99 <- filter(df_study2_large, optimal_percentage == 99.0)
 str(df_study2_large_99)
 ```
+
+```{r}
+df_study2_large_99_grouped <- df_study2_large_99 %>% 
+  mutate(crossover_mutation = paste0(crossover_probability, ",", mutation_probability)) %>%
+  group_by(crossover_mutation) %>% 
+  summarise(
+    avg_num_evaluations = mean(num_evaluations),
+    median_num_evaluations = median(num_evaluations),
+    std_num_evaluations = sd(num_evaluations),
+    optimal_not_reached = sum(target_fitness_reached == FALSE),
+    .groups = 'keep'
+  ) %>%
+  filter(optimal_not_reached > 0)
+df_study2_large_99_grouped <- as.data.frame(df_study2_large_99_grouped)
+df_study2_large_99_grouped
+```
+
+In this case we only got 3 unfinished executions, so this may be a better option for that 'fairer' study, meaning there are just three samples with an additional execution, which should not be an issue.
+
+Thus, for the optimal 'relaxation' study, we will use the results when targeting the 99% of the optimal fitness.
 
 ```{r}
 df_study2_large_relaxed <- df_study2_large_99
@@ -1217,6 +1426,11 @@ df_study2_large_relaxed %>%
         theme(legend.position = "none")
 ```
 
+```{r}
+summary(df_study2_large_relaxed$num_evaluations)
+```
+
+We cannot see the boxplots as there are some extreme values corresponding (mostly) to the 0.02 value for the mutation probability. Thus, we will make a cut at 100000, which is enough as the 3rd quartile is still very far away so we won't cut too many values:
 
 ```{r}
 df_study2_large_relaxed %>% filter(num_evaluations > 100000)
@@ -1238,6 +1452,7 @@ df_study2_large_relaxed_outliers_grouped <- as.data.frame(df_study2_large_relaxe
 df_study2_large_relaxed_outliers_grouped
 ```
 
+As we can see, all such extreme cases correspond to using a small mutation probability, mostly 0.02.
 
 ```{r}
 df_study2_large_relaxed %>%
@@ -1250,6 +1465,7 @@ df_study2_large_relaxed %>%
         theme(legend.position = "none")
 ```
 
+The evaluated crossover probabilities seems not to have any effect on the number of evaluations.
 
 ```{r}
 df_study2_large_relaxed %>%
@@ -1262,6 +1478,7 @@ df_study2_large_relaxed %>%
         theme(legend.position = "none")
 ```
 
+This is a very odd result, since this shows that a lower mutation probability (in this range) yields better results (taking into account that, still, there are many outliers or extreme values when using a value of 0.02, but for example a value of 0.04 seems to be good enough), which is just the opposite as we saw in the previous study. Maybe it has to do with the instance nature, that is, there may be some very specific and different (in terms of genotype) solution(s) to reach the optimal but it is easy to fit a nearly-optimal one?
 
 ```{r, fig.width=10}
 df_study2_large_relaxed %>%
@@ -1283,13 +1500,13 @@ df_study2_large_relaxed_grouped <- df_study2_large_relaxed %>%
     avg_num_evaluations = mean(num_evaluations),
     median_num_evaluations = median(num_evaluations),
     std_num_evaluations = sd(num_evaluations),
-    optimal_not_reached = sum(target_fitness_reached == FALSE),
     .groups = 'keep'
   )
 df_study2_large_relaxed_grouped <- as.data.frame(df_study2_large_relaxed_grouped)
 df_study2_large_relaxed_grouped
 ```
 
+At first glance, it seems that the best configuration in this case is a crossover probability of 0.7 and a mutation probability of 0.04.
 
 ```{r}
 df_study2_large_relaxed <- as.data.frame(df_study2_large_relaxed %>% 
@@ -1311,14 +1528,18 @@ df_study2_large_relaxed
 kruskal.test(num_evaluations ~ crossover_mutation, data = df_study2_large_relaxed)
 ```
 
+There's at least one combination of parameters that has a different distribution of values than the rest, let's check it:
 
 ```{r, warning=FALSE}
-pairwise.wilcox.test(x = df_study2_large_relaxed$num_evaluations,
-                     g = df_study2_large_relaxed$crossover_mutation,
-                     p.adjust.method = "BH",
-                     paired = FALSE)
+result <- pairwise.wilcox.test(x = df_study2_large_relaxed$num_evaluations,
+                               g = df_study2_large_relaxed$crossover_mutation,
+                               p.adjust.method = "BH",
+                               paired = FALSE)
+print(result)
+GetNumberDifferentPairs(result, 0.02)
 ```
 
+We can see that this is the test where the larger number of pairs can be considered as yielding different distributions of the number of evaluations (210 out of 300 pairs). Let's check the crossover and mutation probabilities in an isolated manner:
 
 ```{r}
 df_study2_large_relaxed_grouped_crossover <- df_study2_large_relaxed %>% 
@@ -1327,13 +1548,20 @@ df_study2_large_relaxed_grouped_crossover <- df_study2_large_relaxed %>%
     avg_num_evaluations = mean(num_evaluations),
     median_num_evaluations = median(num_evaluations),
     std_num_evaluations = sd(num_evaluations),
-    optimal_not_reached = sum(target_fitness_reached == FALSE),
     .groups = 'keep'
   )
 df_study2_large_relaxed_grouped_crossover <- as.data.frame(df_study2_large_relaxed_grouped_crossover)
 df_study2_large_relaxed_grouped_crossover
 ```
 
+The results are not that different for each crossover probability, specially considering that the Wilcoxon tests would evaluate the medians, but still seems like the 1.0 value yields some slightly better results at first glance, let's check it:
+
+
+```{r}
+kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_large_relaxed)
+```
+
+The p-value is small, certainly the null hypothesis could be rejected in other studies but we have used the 0.02 level of significance so far and this case is not different, so we cannot say that the different crossover probabilities yield a number of evaluations that come from different population distributions.
 
 ```{r}
 df_study2_large_relaxed_grouped_mutation <- df_study2_large_relaxed %>% 
@@ -1342,22 +1570,19 @@ df_study2_large_relaxed_grouped_mutation <- df_study2_large_relaxed %>%
     avg_num_evaluations = mean(num_evaluations),
     median_num_evaluations = median(num_evaluations),
     std_num_evaluations = sd(num_evaluations),
-    optimal_not_reached = sum(target_fitness_reached == FALSE),
     .groups = 'keep'
   )
 df_study2_large_relaxed_grouped_mutation <- as.data.frame(df_study2_large_relaxed_grouped_mutation)
 df_study2_large_relaxed_grouped_mutation
 ```
 
-
-```{r}
-kruskal.test(num_evaluations ~ crossover_probability, data = df_study2_large_relaxed)
-```
+With the mutation probability it's likely as always so far that we there will be statistically significant differences in the number of evaluations for each value:
 
 ```{r}
 kruskal.test(num_evaluations ~ mutation_probability, data = df_study2_large_relaxed)
 ```
 
+Indeed there's at least one different distribution of values.
 
 ```{r, warning=FALSE}
 pairwise.wilcox.test(x = df_study2_large_relaxed$num_evaluations,
@@ -1365,4 +1590,6 @@ pairwise.wilcox.test(x = df_study2_large_relaxed$num_evaluations,
                      p.adjust.method = "BH",
                      paired = FALSE)
 ```
+
+There are statistically significant differences between each pair of tested values except between 0.02 and 0.04, and 0.02 and 0.06. The best balance between mean, median and standard deviation seems to be obtained with a mutation probability of 0.06. This result is very different to the previously obtained ones for this problem instance, and as mentioned, it may be due to the instance's nature as there may be some very specific and different (in terms of genotype) solution(s) to reach the optimal compared to the ones that can reach the 99%.
 
